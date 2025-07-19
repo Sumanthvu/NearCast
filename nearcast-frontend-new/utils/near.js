@@ -127,33 +127,23 @@ export async function callMethod({ method, args = {}, deposit = "0", gas = "3000
   }
 }
 
-export async function viewMethod(method, args = {}, retries = 3, delay = 1000) {
-  const provider = new providers.JsonRpcProvider({
-    url: "https://public-rpc.blockpi.io/http/near-testnet",
-  })
+export async function viewMethod(method, args = {}) {
+  try {
+    const provider = new providers.JsonRpcProvider({
+      url: `https://rpc.${NETWORK_ID}.near.org`,
+    })
 
-  for (let i = 0; i < retries; i++) {
-    try {
-      const res = await provider.query({
-        request_type: "call_function",
-        account_id: CONTRACT_ID,
-        method_name: method,
-        args_base64: Buffer.from(JSON.stringify(args)).toString("base64"),
-        finality: "optimistic",
-      })
+    const res = await provider.query({
+      request_type: "call_function",
+      account_id: CONTRACT_ID,
+      method_name: method,
+      args_base64: Buffer.from(JSON.stringify(args)).toString("base64"),
+      finality: "optimistic",
+    })
 
-      return JSON.parse(Buffer.from(res.result).toString())
-    } catch (error) {
-      console.error(`Attempt ${i + 1} failed for viewMethod ${method}:`, error)
-      if (i < retries - 1) {
-        // Only retry if it's not the last attempt
-        console.log(`Retrying in ${delay}ms...`)
-        await new Promise((resolve) => setTimeout(resolve, delay))
-        delay *= 2 // Exponential backoff
-      } else {
-        // If all retries fail, re-throw the error
-        throw new Error(`Failed to call ${method} after ${retries} attempts: ${error.message}`)
-      }
-    }
+    return JSON.parse(Buffer.from(res.result).toString())
+  } catch (error) {
+    console.error("Error calling view method:", error)
+    throw new Error(`Failed to call ${method}: ${error.message}`)
   }
 }
