@@ -287,7 +287,7 @@ export default function Post({ post, showToast, onPostUpdate }) {
 
         {currentUser && currentUser !== post.owner && (
           <button className="action-btn" onClick={handleSupport}>
-            💝
+            💝 
           </button>
         )}
       </div>
