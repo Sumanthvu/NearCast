@@ -129,7 +129,7 @@ export async function callMethod({ method, args = {}, deposit = "0", gas = "3000
 
 export async function viewMethod(method, args = {}, retries = 3, delay = 1000) {
   const provider = new providers.JsonRpcProvider({
-    url: `https://rpc.${NETWORK_ID}.near.org`,
+    url: "https://public-rpc.blockpi.io/http/near-testnet",
   })
 
   for (let i = 0; i < retries; i++) {
