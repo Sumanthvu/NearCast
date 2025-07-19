@@ -7,6 +7,8 @@ export default function PostForm({ onPostCreated, showToast }) {
   const [caption, setCaption] = useState("")
   const [file, setFile] = useState(null)
   const [loading, setLoading] = useState(false)
+  let mediaType = "text"
+  let ipfsHash = null
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -25,9 +27,6 @@ export default function PostForm({ onPostCreated, showToast }) {
     setLoading(true)
 
     try {
-      let ipfsHash = null
-      let mediaType = "text"
-
       // Handle file upload if present
       if (file) {
         console.log("Uploading file to IPFS:", file.name)
@@ -47,7 +46,7 @@ export default function PostForm({ onPostCreated, showToast }) {
 
       console.log("Creating post with:", { caption: caption.trim(), media_type: mediaType, ipfs_hash: ipfsHash })
 
-      // Create post on NEAR
+      // Create post on NEAR - Try with minimal gas and no deposit
       await callMethod({
         method: "create_post",
         args: {
@@ -55,7 +54,8 @@ export default function PostForm({ onPostCreated, showToast }) {
           media_type: mediaType,
           ipfs_hash: ipfsHash,
         },
-        deposit: "0.001",
+        deposit: "0",
+        gas: "30000000000000", // Reduced gas for free transactions
       })
 
       setCaption("")
@@ -64,12 +64,47 @@ export default function PostForm({ onPostCreated, showToast }) {
       onPostCreated()
     } catch (error) {
       console.error("Error creating post:", error)
-      if (error.message.includes("Failed to upload to IPFS")) {
-        showToast("Failed to upload media to IPFS", "error")
-      } else if (error.message.includes("User rejected")) {
-        showToast("Transaction was cancelled", "error")
+
+      // If the transaction fails due to deposit requirements, try with minimal deposit
+      if (
+        error.message.includes("deposit") ||
+        error.message.includes("attached") ||
+        error.message.includes("payable")
+      ) {
+        try {
+          console.log("Retrying with minimal deposit...")
+          await callMethod({
+            method: "create_post",
+            args: {
+              caption: caption.trim(),
+              media_type: mediaType,
+              ipfs_hash: ipfsHash,
+            },
+            deposit: "0.000000000000000000000001", // Minimal possible deposit (1 yoctoNEAR)
+          })
+
+          setCaption("")
+          setFile(null)
+          showToast("Post created successfully!")
+          onPostCreated()
+        } catch (retryError) {
+          console.error("Retry failed:", retryError)
+          if (retryError.message.includes("Failed to upload to IPFS")) {
+            showToast("Failed to upload media to IPFS", "error")
+          } else if (retryError.message.includes("User rejected")) {
+            showToast("Transaction was cancelled", "error")
+          } else {
+            showToast("Failed to create post. Please try again.", "error")
+          }
+        }
       } else {
-        showToast("Failed to create post. Please try again.", "error")
+        if (error.message.includes("Failed to upload to IPFS")) {
+          showToast("Failed to upload media to IPFS", "error")
+        } else if (error.message.includes("User rejected")) {
+          showToast("Transaction was cancelled", "error")
+        } else {
+          showToast("Failed to create post. Please try again.", "error")
+        }
       }
     } finally {
       setLoading(false)
@@ -111,15 +146,15 @@ export default function PostForm({ onPostCreated, showToast }) {
           )}
         </div>
 
-        {/* Add a checkbox for posting without media if upload fails */}
+        {/* Updated tip message */}
         <div style={{ fontSize: "12px", color: "#657786", marginBottom: "10px" }}>
-          💡 Tip: If media upload fails, the post will be created as text-only
+          💡 Free posting! Upload images and videos without any fees
         </div>
 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ fontSize: "12px", color: "#657786" }}>{caption.length}/280 characters</span>
           <button type="submit" className="button" disabled={loading || !caption.trim()}>
-            {loading ? "Posting..." : "Post"}
+            {loading ? "Posting..." : "Post for Free"}
           </button>
         </div>
       </form>

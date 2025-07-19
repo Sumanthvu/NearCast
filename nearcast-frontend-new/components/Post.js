@@ -3,16 +3,42 @@ import { useState, useEffect } from "react"
 import { callMethod, viewMethod, getAccountId } from "../utils/near"
 import Comments from "./Comments"
 
-export default function Post({ post, showToast, onPostUpdate }) {
+export default function Post({ post, showToast, onPostUpdate, onUserClick }) {
   const [comments, setComments] = useState([])
   const [showComments, setShowComments] = useState(false)
   const [newComment, setNewComment] = useState("")
   const [loading, setLoading] = useState(false)
   const [currentUser, setCurrentUser] = useState(null)
+  const [likeCount, setLikeCount] = useState(post.likes)
+  const [isLiked, setIsLiked] = useState(false)
+  const [likeLoading, setLikeLoading] = useState(false)
+  const [isFollowing, setIsFollowing] = useState(false)
+  const [followLoading, setFollowLoading] = useState(false)
 
   useEffect(() => {
     getAccountId().then(setCurrentUser)
   }, [])
+
+  useEffect(() => {
+    if (currentUser) {
+      checkIfLiked()
+      checkIfFollowing()
+    }
+  }, [currentUser, post.post_id])
+
+  const checkIfLiked = () => {
+    if (!currentUser) return
+
+    const likedPosts = JSON.parse(localStorage.getItem(`likedPosts_${currentUser}`) || "{}")
+    setIsLiked(!!likedPosts[post.post_id])
+  }
+
+  const checkIfFollowing = () => {
+    if (!currentUser) return
+
+    const followingUsers = JSON.parse(localStorage.getItem(`following_${currentUser}`) || "{}")
+    setIsFollowing(!!followingUsers[post.owner])
+  }
 
   const loadComments = async () => {
     try {
@@ -29,16 +55,44 @@ export default function Post({ post, showToast, onPostUpdate }) {
       return
     }
 
+    if (likeLoading) return
+
+    if (isLiked) {
+      showToast("You have already liked this post!", "error")
+      return
+    }
+
+    setLikeLoading(true)
+
     try {
       await callMethod({
         method: "like_post",
         args: { post_id: post.post_id },
+        deposit: "0",
       })
-      showToast("Post liked!")
-      onPostUpdate()
+
+      setLikeCount((prev) => prev + 1)
+      setIsLiked(true)
+
+      const likedPosts = JSON.parse(localStorage.getItem(`likedPosts_${currentUser}`) || "{}")
+      likedPosts[post.post_id] = true
+      localStorage.setItem(`likedPosts_${currentUser}`, JSON.stringify(likedPosts))
+
+      showToast("Post liked! ❤️")
     } catch (error) {
       console.error("Error liking post:", error)
-      showToast("Failed to like post", "error")
+
+      if (error.message.includes("Already liked")) {
+        setIsLiked(true)
+        const likedPosts = JSON.parse(localStorage.getItem(`likedPosts_${currentUser}`) || "{}")
+        likedPosts[post.post_id] = true
+        localStorage.setItem(`likedPosts_${currentUser}`, JSON.stringify(likedPosts))
+        showToast("You have already liked this post!", "error")
+      } else {
+        showToast("Failed to like post", "error")
+      }
+    } finally {
+      setLikeLoading(false)
     }
   }
 
@@ -59,6 +113,7 @@ export default function Post({ post, showToast, onPostUpdate }) {
           post_id: post.post_id,
           content: newComment.trim(),
         },
+        deposit: "0",
       })
       setNewComment("")
       showToast("Comment added!")
@@ -106,15 +161,51 @@ export default function Post({ post, showToast, onPostUpdate }) {
       return
     }
 
+    if (followLoading) return
+
+    setFollowLoading(true)
+
     try {
-      await callMethod({
-        method: "follow_user",
-        args: { user: post.owner },
-      })
-      showToast(`Now following ${post.owner}!`)
+      if (isFollowing) {
+        await callMethod({
+          method: "unfollow_user",
+          args: { user: post.owner },
+          deposit: "0",
+        })
+
+        setIsFollowing(false)
+
+        const followingUsers = JSON.parse(localStorage.getItem(`following_${currentUser}`) || "{}")
+        delete followingUsers[post.owner]
+        localStorage.setItem(`following_${currentUser}`, JSON.stringify(followingUsers))
+
+        showToast(`Unfollowed ${post.owner}`)
+      } else {
+        await callMethod({
+          method: "follow_user",
+          args: { user: post.owner },
+          deposit: "0",
+        })
+
+        setIsFollowing(true)
+
+        const followingUsers = JSON.parse(localStorage.getItem(`following_${currentUser}`) || "{}")
+        followingUsers[post.owner] = true
+        localStorage.setItem(`following_${currentUser}`, JSON.stringify(followingUsers))
+
+        showToast(`Now following ${post.owner}!`)
+      }
     } catch (error) {
-      console.error("Error following user:", error)
-      showToast("Failed to follow user", "error")
+      console.error("Error following/unfollowing user:", error)
+      showToast("Failed to update follow status", "error")
+    } finally {
+      setFollowLoading(false)
+    }
+  }
+
+  const handleUserClick = () => {
+    if (onUserClick) {
+      onUserClick(post.owner)
     }
   }
 
@@ -143,16 +234,43 @@ export default function Post({ post, showToast, onPostUpdate }) {
       <div className="user-info">
         <div className="avatar">{post.owner.charAt(0).toUpperCase()}</div>
         <div>
-          <strong>{post.owner}</strong>
+          <button
+            onClick={handleUserClick}
+            style={{
+              background: "none",
+              border: "none",
+              padding: 0,
+              cursor: "pointer",
+              textDecoration: "none",
+            }}
+          >
+            <strong
+              style={{
+                color: "#24248f",
+                fontSize: "16px",
+              }}
+              onMouseEnter={(e) => (e.target.style.textDecoration = "underline")}
+              onMouseLeave={(e) => (e.target.style.textDecoration = "none")}
+            >
+              {post.owner}
+            </strong>
+          </button>
           <div className="timestamp">{formatTimestamp(post.timestamp)}</div>
         </div>
         {currentUser && currentUser !== post.owner && (
           <button
             onClick={handleFollow}
+            disabled={followLoading}
             className="button"
-            style={{ marginLeft: "auto", fontSize: "12px", padding: "4px 8px" }}
+            style={{
+              marginLeft: "auto",
+              fontSize: "12px",
+              padding: "4px 8px",
+              background: isFollowing ? "#e0245e" : "#24248f",
+              opacity: followLoading ? 0.6 : 1,
+            }}
           >
-            Follow
+            {followLoading ? "..." : isFollowing ? "Following" : "Follow"}
           </button>
         )}
       </div>
@@ -186,8 +304,17 @@ export default function Post({ post, showToast, onPostUpdate }) {
       )}
 
       <div className="post-actions">
-        <button className="action-button" onClick={handleLike}>
-          ❤️ {post.likes}
+        <button
+          className={`action-button ${isLiked ? "liked" : ""}`}
+          onClick={handleLike}
+          disabled={likeLoading}
+          style={{
+            color: isLiked ? "#657786" : "#657786",
+            opacity: likeLoading ? 0.6 : 1,
+            cursor: isLiked ? "not-allowed" : "pointer",
+          }}
+        >
+          {likeLoading ? "..." : "🤍"} {likeCount}
         </button>
 
         <button

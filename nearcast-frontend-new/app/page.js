@@ -46,6 +46,15 @@ export default function Home() {
     setActiveTab("profile")
   }
 
+  const refreshPosts = async () => {
+    try {
+      const allPosts = await viewMethod("get_all_posts")
+      setPosts(allPosts.sort((a, b) => b.timestamp - a.timestamp))
+    } catch (error) {
+      console.error("Error refreshing posts:", error)
+    }
+  }
+
   return (
     <div>
       <Toast message={toast.message} type={toast.type} onClose={closeToast} />
@@ -77,7 +86,7 @@ export default function Home() {
 
         {activeTab === "feed" && (
           <>
-            {currentUser && <PostForm onPostCreated={loadPosts} showToast={showToast} />}
+            {currentUser && <PostForm onPostCreated={refreshPosts} showToast={showToast} />}
 
             {loading ? (
               <div className="loading">
@@ -91,28 +100,16 @@ export default function Home() {
             ) : (
               posts.map((post) => (
                 <div key={post.post_id}>
-                  <Post post={post} showToast={showToast} onPostUpdate={loadPosts} />
-                  <div style={{ fontSize: "12px", color: "#24248f", marginBottom: "10px" }}>
-                    <button
-                      onClick={() => handleUserClick(post.owner)}
-                      style={{
-                        background: "none",
-                        border: "none",
-                        color: "#24248f",
-                        cursor: "pointer",
-                        textDecoration: "underline",
-                      }}
-                    >
-                      View {post.owner}'s profile
-                    </button>
-                  </div>
+                  <Post post={post} showToast={showToast} onPostUpdate={() => {}} onUserClick={handleUserClick} />
                 </div>
               ))
             )}
           </>
         )}
 
-        {activeTab === "profile" && selectedUser && <UserProfile userId={selectedUser} showToast={showToast} />}
+        {activeTab === "profile" && selectedUser && (
+          <UserProfile userId={selectedUser} showToast={showToast} onUserClick={handleUserClick} />
+        )}
 
         {!currentUser && (
           <div

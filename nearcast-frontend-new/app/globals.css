@@ -175,6 +175,7 @@ body {
   padding: 5px 10px;
   border-radius: 20px;
   transition: all 0.2s;
+  font-size: 14px;
 }
 
 .action-button:hover {
@@ -184,6 +185,17 @@ body {
 
 .action-button.liked {
   color: #e0245e;
+  background: #fdf2f8;
+}
+
+.action-button.liked:hover {
+  background: #fce7f3;
+  color: #be185d;
+}
+
+.action-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .file-input {
