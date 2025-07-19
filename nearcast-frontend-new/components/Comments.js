@@ -19,7 +19,7 @@ export default function Comments({ comments }) {
 
   if (!comments || comments.length === 0) {
     return (
-      <div style={{ textAlign: "center", color: "#657786", padding: "20px" }}>
+      <div style={{ textAlign: "center", color: "#8e8e8e", padding: "20px", fontSize: "14px" }}>
         No comments yet. Be the first to comment!
       </div>
     )
@@ -29,14 +29,14 @@ export default function Comments({ comments }) {
     <div>
       {comments.map((comment, index) => (
         <div key={index} className="comment">
-          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "5px" }}>
-            <div className="avatar" style={{ width: "30px", height: "30px", fontSize: "12px" }}>
-              {comment.commenter.charAt(0).toUpperCase()}
+          <div className="comment-header">
+            <div className="comment-avatar">{comment.commenter.charAt(0).toUpperCase()}</div>
+            <div className="comment-content">
+              <span className="comment-username">{comment.commenter}</span>
+              <span className="comment-text">{comment.content}</span>
+              <div className="comment-time">{formatTimestamp(comment.timestamp)}</div>
             </div>
-            <strong style={{ fontSize: "14px" }}>{comment.commenter}</strong>
-            <span className="timestamp">{formatTimestamp(comment.timestamp)}</span>
           </div>
-          <p style={{ margin: "0 0 0 40px", fontSize: "14px", lineHeight: "1.4" }}>{comment.content}</p>
         </div>
       ))}
     </div>

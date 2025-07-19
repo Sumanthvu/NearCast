@@ -1,9 +1,12 @@
 "use client"
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation" // Import useRouter
 import { callMethod, viewMethod, getAccountId } from "../utils/near"
 import Comments from "./Comments"
 
-export default function Post({ post, showToast, onPostUpdate, onUserClick }) {
+export default function Post({ post, showToast, onPostUpdate }) {
+  // Removed onUserClick prop
+  const router = useRouter() // Initialize useRouter
   const [comments, setComments] = useState([])
   const [showComments, setShowComments] = useState(false)
   const [newComment, setNewComment] = useState("")
@@ -14,6 +17,7 @@ export default function Post({ post, showToast, onPostUpdate, onUserClick }) {
   const [likeLoading, setLikeLoading] = useState(false)
   const [isFollowing, setIsFollowing] = useState(false)
   const [followLoading, setFollowLoading] = useState(false)
+  const [showFullMedia, setShowFullMedia] = useState(false)
 
   useEffect(() => {
     getAccountId().then(setCurrentUser)
@@ -28,14 +32,12 @@ export default function Post({ post, showToast, onPostUpdate, onUserClick }) {
 
   const checkIfLiked = () => {
     if (!currentUser) return
-
     const likedPosts = JSON.parse(localStorage.getItem(`likedPosts_${currentUser}`) || "{}")
     setIsLiked(!!likedPosts[post.post_id])
   }
 
   const checkIfFollowing = () => {
     if (!currentUser) return
-
     const followingUsers = JSON.parse(localStorage.getItem(`following_${currentUser}`) || "{}")
     setIsFollowing(!!followingUsers[post.owner])
   }
@@ -78,10 +80,9 @@ export default function Post({ post, showToast, onPostUpdate, onUserClick }) {
       likedPosts[post.post_id] = true
       localStorage.setItem(`likedPosts_${currentUser}`, JSON.stringify(likedPosts))
 
-      showToast("Post liked! ❤️")
+      showToast("Post liked!")
     } catch (error) {
       console.error("Error liking post:", error)
-
       if (error.message.includes("Already liked")) {
         setIsLiked(true)
         const likedPosts = JSON.parse(localStorage.getItem(`likedPosts_${currentUser}`) || "{}")
@@ -143,7 +144,7 @@ export default function Post({ post, showToast, onPostUpdate, onUserClick }) {
         args: { recipient: post.owner },
         deposit: "0.001",
       })
-      showToast("Support sent successfully! 💝")
+      showToast("Support sent successfully!")
     } catch (error) {
       console.error("Error supporting user:", error)
       showToast("Failed to send support", "error")
@@ -162,7 +163,6 @@ export default function Post({ post, showToast, onPostUpdate, onUserClick }) {
     }
 
     if (followLoading) return
-
     setFollowLoading(true)
 
     try {
@@ -174,11 +174,9 @@ export default function Post({ post, showToast, onPostUpdate, onUserClick }) {
         })
 
         setIsFollowing(false)
-
         const followingUsers = JSON.parse(localStorage.getItem(`following_${currentUser}`) || "{}")
         delete followingUsers[post.owner]
         localStorage.setItem(`following_${currentUser}`, JSON.stringify(followingUsers))
-
         showToast(`Unfollowed ${post.owner}`)
       } else {
         await callMethod({
@@ -188,11 +186,9 @@ export default function Post({ post, showToast, onPostUpdate, onUserClick }) {
         })
 
         setIsFollowing(true)
-
         const followingUsers = JSON.parse(localStorage.getItem(`following_${currentUser}`) || "{}")
         followingUsers[post.owner] = true
         localStorage.setItem(`following_${currentUser}`, JSON.stringify(followingUsers))
-
         showToast(`Now following ${post.owner}!`)
       }
     } catch (error) {
@@ -204,9 +200,7 @@ export default function Post({ post, showToast, onPostUpdate, onUserClick }) {
   }
 
   const handleUserClick = () => {
-    if (onUserClick) {
-      onUserClick(post.owner)
-    }
+    router.push(`/profile/${post.owner}`) // Navigate directly to profile page
   }
 
   const formatTimestamp = (timestamp) => {
@@ -231,133 +225,107 @@ export default function Post({ post, showToast, onPostUpdate, onUserClick }) {
 
   return (
     <div className="post-card">
-      <div className="user-info">
-        <div className="avatar">{post.owner.charAt(0).toUpperCase()}</div>
-        <div>
-          <button
-            onClick={handleUserClick}
-            style={{
-              background: "none",
-              border: "none",
-              padding: 0,
-              cursor: "pointer",
-              textDecoration: "none",
-            }}
-          >
-            <strong
-              style={{
-                color: "#24248f",
-                fontSize: "16px",
-              }}
-              onMouseEnter={(e) => (e.target.style.textDecoration = "underline")}
-              onMouseLeave={(e) => (e.target.style.textDecoration = "none")}
-            >
-              {post.owner}
-            </strong>
-          </button>
+      <div className="post-header">
+        <div className="avatar" onClick={handleUserClick}>
+          {post.owner.charAt(0).toUpperCase()}
+        </div>
+        <div className="post-user-info">
+          <div className="username" onClick={handleUserClick}>
+            {post.owner}
+          </div>
           <div className="timestamp">{formatTimestamp(post.timestamp)}</div>
         </div>
         {currentUser && currentUser !== post.owner && (
           <button
             onClick={handleFollow}
             disabled={followLoading}
-            className="button"
-            style={{
-              marginLeft: "auto",
-              fontSize: "12px",
-              padding: "4px 8px",
-              background: isFollowing ? "#e0245e" : "#24248f",
-              opacity: followLoading ? 0.6 : 1,
-            }}
+            className={`follow-btn ${isFollowing ? "following" : ""}`}
           >
             {followLoading ? "..." : isFollowing ? "Following" : "Follow"}
           </button>
         )}
       </div>
 
-      <div style={{ marginBottom: "15px" }}>
-        <p style={{ margin: 0, lineHeight: "1.4" }}>{post.caption}</p>
-      </div>
-
       {post.ipfs_hash && (
-        <div className="media-container">
+        <div className="media-container" onClick={() => setShowFullMedia(true)}>
           {post.media_type === "image" ? (
             <img
               src={getMediaUrl(post.ipfs_hash) || "/placeholder.svg"}
               alt="Post media"
-              style={{ maxWidth: "100%", height: "auto" }}
               onError={(e) => {
                 e.target.src = `https://via.placeholder.com/400x300?text=Image+Not+Available`
               }}
             />
           ) : post.media_type === "video" ? (
-            <video
-              src={getMediaUrl(post.ipfs_hash)}
-              controls
-              style={{ maxWidth: "100%", height: "auto" }}
-              onError={(e) => {
-                console.error("Video failed to load:", e)
-              }}
-            />
+            <video src={getMediaUrl(post.ipfs_hash)} controls />
           ) : null}
         </div>
       )}
 
+      <div className="post-content">
+        <div className="post-caption">
+          <br/>
+          <span className="username">{post.owner}</span> {post.caption}
+        </div>
+      </div>
+
+      {/* Moved post-actions below caption */}
       <div className="post-actions">
-        <button
-          className={`action-button ${isLiked ? "liked" : ""}`}
-          onClick={handleLike}
-          disabled={likeLoading}
-          style={{
-            color: isLiked ? "#657786" : "#657786",
-            opacity: likeLoading ? 0.6 : 1,
-            cursor: isLiked ? "not-allowed" : "pointer",
-          }}
-        >
-          {likeLoading ? "..." : "🤍"} {likeCount}
+        <button className={`action-btn ${isLiked ? "liked" : ""}`} onClick={handleLike} disabled={likeLoading}>
+          {likeLoading ? "..." : isLiked ? "❤️" : "🤍"}
         </button>
 
         <button
-          className="action-button"
+          className="action-btn"
           onClick={() => {
             setShowComments(!showComments)
             if (!showComments) loadComments()
           }}
         >
-          💬 Comment
+          💬
         </button>
 
         {currentUser && currentUser !== post.owner && (
-          <button className="action-button" onClick={handleSupport}>
-            💝 Support (0.001 Ⓝ)
+          <button className="action-btn" onClick={handleSupport}>
+            💝
           </button>
         )}
       </div>
+
+      {likeCount > 0 && (
+        <div className="like-count">
+          {likeCount} {likeCount === 1 ? "like" : "likes"}
+        </div>
+      )}
 
       {showComments && (
         <div className="comment-section">
           <Comments comments={comments} />
 
           {currentUser && (
-            <form onSubmit={handleComment} style={{ marginTop: "15px" }}>
+            <form onSubmit={handleComment} className="comment-form">
               <textarea
-                className="textarea"
-                placeholder="Write a comment..."
+                className="comment-input"
+                placeholder="Add a comment..."
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
-                rows={2}
-                style={{ minHeight: "60px" }}
+                rows={1}
               />
-              <button
-                type="submit"
-                className="button"
-                disabled={loading || !newComment.trim()}
-                style={{ fontSize: "12px" }}
-              >
-                {loading ? "Posting..." : "Comment"}
+              <button type="submit" className="comment-submit" disabled={loading || !newComment.trim()}>
+                {loading ? "..." : "Post"}
               </button>
             </form>
           )}
+        </div>
+      )}
+
+      {showFullMedia && (
+        <div className="media-modal" onClick={() => setShowFullMedia(false)}>
+          {post.media_type === "image" ? (
+            <img src={getMediaUrl(post.ipfs_hash) || "/placeholder.svg"} alt="Full screen media" />
+          ) : post.media_type === "video" ? (
+            <video src={getMediaUrl(post.ipfs_hash)} controls />
+          ) : null}
         </div>
       )}
     </div>

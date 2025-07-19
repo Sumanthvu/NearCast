@@ -7,8 +7,22 @@ export default function PostForm({ onPostCreated, showToast }) {
   const [caption, setCaption] = useState("")
   const [file, setFile] = useState(null)
   const [loading, setLoading] = useState(false)
-  let mediaType = "text"
-  let ipfsHash = null
+  const [previewUrl, setPreviewUrl] = useState(null)
+
+  const handleFileChange = (e) => {
+    const selectedFile = e.target.files[0]
+    setFile(selectedFile)
+
+    if (selectedFile) {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        setPreviewUrl(e.target.result)
+      }
+      reader.readAsDataURL(selectedFile)
+    } else {
+      setPreviewUrl(null)
+    }
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -25,9 +39,10 @@ export default function PostForm({ onPostCreated, showToast }) {
     }
 
     setLoading(true)
+    let mediaType = "text"
+    let ipfsHash = null
 
     try {
-      // Handle file upload if present
       if (file) {
         console.log("Uploading file to IPFS:", file.name)
         try {
@@ -38,15 +53,11 @@ export default function PostForm({ onPostCreated, showToast }) {
         } catch (uploadError) {
           console.error("IPFS upload failed:", uploadError)
           showToast("Failed to upload media. Posting without media...", "error")
-          // Continue without media
           ipfsHash = null
           mediaType = "text"
         }
       }
 
-      console.log("Creating post with:", { caption: caption.trim(), media_type: mediaType, ipfs_hash: ipfsHash })
-
-      // Create post on NEAR - Try with minimal gas and no deposit
       await callMethod({
         method: "create_post",
         args: {
@@ -55,17 +66,17 @@ export default function PostForm({ onPostCreated, showToast }) {
           ipfs_hash: ipfsHash,
         },
         deposit: "0",
-        gas: "30000000000000", // Reduced gas for free transactions
+        gas: "30000000000000",
       })
 
       setCaption("")
       setFile(null)
+      setPreviewUrl(null)
       showToast("Post created successfully!")
       onPostCreated()
     } catch (error) {
       console.error("Error creating post:", error)
 
-      // If the transaction fails due to deposit requirements, try with minimal deposit
       if (
         error.message.includes("deposit") ||
         error.message.includes("attached") ||
@@ -80,31 +91,20 @@ export default function PostForm({ onPostCreated, showToast }) {
               media_type: mediaType,
               ipfs_hash: ipfsHash,
             },
-            deposit: "0.000000000000000000000001", // Minimal possible deposit (1 yoctoNEAR)
+            deposit: "0.000000000000000000000001",
           })
 
           setCaption("")
           setFile(null)
+          setPreviewUrl(null)
           showToast("Post created successfully!")
           onPostCreated()
         } catch (retryError) {
           console.error("Retry failed:", retryError)
-          if (retryError.message.includes("Failed to upload to IPFS")) {
-            showToast("Failed to upload media to IPFS", "error")
-          } else if (retryError.message.includes("User rejected")) {
-            showToast("Transaction was cancelled", "error")
-          } else {
-            showToast("Failed to create post. Please try again.", "error")
-          }
-        }
-      } else {
-        if (error.message.includes("Failed to upload to IPFS")) {
-          showToast("Failed to upload media to IPFS", "error")
-        } else if (error.message.includes("User rejected")) {
-          showToast("Transaction was cancelled", "error")
-        } else {
           showToast("Failed to create post. Please try again.", "error")
         }
+      } else {
+        showToast("Failed to create post. Please try again.", "error")
       }
     } finally {
       setLoading(false)
@@ -112,49 +112,85 @@ export default function PostForm({ onPostCreated, showToast }) {
   }
 
   return (
-    <div className="post-form">
-      <h3 style={{ marginTop: 0, color: "#24248f" }}>Create a Post</h3>
-      <form onSubmit={handleSubmit}>
+    <div className="create-post-container">
+      <div className="create-post-header">
+        <div className="avatar">{/* This will be filled with current user's initial */}</div>
+        <div style={{ flex: 1, fontSize: "16px", color: "#8e8e8e" }}>What's on your mind?</div>
+      </div>
+
+      <form onSubmit={handleSubmit} className="create-post-form">
         <textarea
-          className="textarea"
-          placeholder="What's happening?"
+          className="post-textarea"
+          placeholder="Share something with the community..."
           value={caption}
           onChange={(e) => setCaption(e.target.value)}
           maxLength={280}
         />
 
-        <div className="file-input">
-          <input type="file" accept="image/*,video/*" onChange={(e) => setFile(e.target.files[0])} />
-          {file && (
-            <div style={{ marginTop: "10px", fontSize: "14px", color: "#657786" }}>
-              Selected: {file.name}
+        <div
+          className={`file-upload-section ${file ? "has-file" : ""}`}
+          onClick={() => document.getElementById("file-input").click()}
+        >
+          <input
+            id="file-input"
+            type="file"
+            accept="image/*,video/*"
+            onChange={handleFileChange}
+            style={{ display: "none" }}
+          />
+
+          {previewUrl ? (
+            <div style={{ position: "relative" }}>
+              {file.type.startsWith("image/") ? (
+                <img
+                  src={previewUrl || "/placeholder.svg"}
+                  alt="Preview"
+                  style={{ maxWidth: "100%", maxHeight: "200px", borderRadius: "8px" }}
+                />
+              ) : (
+                <video
+                  src={previewUrl}
+                  controls
+                  style={{ maxWidth: "100%", maxHeight: "200px", borderRadius: "8px" }}
+                />
+              )}
               <button
                 type="button"
-                onClick={() => setFile(null)}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setFile(null)
+                  setPreviewUrl(null)
+                }}
                 style={{
-                  marginLeft: "10px",
-                  background: "none",
+                  position: "absolute",
+                  top: "8px",
+                  right: "8px",
+                  background: "rgba(0, 0, 0, 0.7)",
+                  color: "white",
                   border: "none",
-                  color: "#e0245e",
+                  borderRadius: "50%",
+                  width: "24px",
+                  height: "24px",
                   cursor: "pointer",
                   fontSize: "12px",
                 }}
               >
-                Remove
+                ✕
               </button>
             </div>
+          ) : (
+            <>
+              <div className="upload-icon">📷</div>
+              <div className="upload-text">Add photos or videos</div>
+              <div className="upload-subtext">Click to browse your files</div>
+            </>
           )}
         </div>
 
-        {/* Updated tip message */}
-        <div style={{ fontSize: "12px", color: "#657786", marginBottom: "10px" }}>
-          💡 Free posting! Upload images and videos without any fees
-        </div>
-
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontSize: "12px", color: "#657786" }}>{caption.length}/280 characters</span>
-          <button type="submit" className="button" disabled={loading || !caption.trim()}>
-            {loading ? "Posting..." : "Post for Free"}
+        <div className="post-actions-bar">
+          <div className="char-count">{caption.length}/280</div>
+          <button type="submit" className="post-btn" disabled={loading || !caption.trim()}>
+            {loading ? "Posting..." : "Share"}
           </button>
         </div>
       </form>

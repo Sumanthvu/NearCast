@@ -1,49 +1,29 @@
 "use client"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { viewMethod, getAccountId } from "../utils/near"
-import Wallet from "../components/Wallet"
-import Post from "../components/Post"
-import Toast from "../components/Toast"
+import { getAccountId } from "../../../utils/near"
+import UserProfile from "../../../components/UserProfile"
+import Wallet from "../../../components/Wallet"
+import Toast from "../../../components/Toast"
 
-export default function Home() {
+export default function UserProfilePage({ params }) {
   const router = useRouter()
-  const [posts, setPosts] = useState([])
-  const [loading, setLoading] = useState(true)
+  const { userId } = params
   const [currentUser, setCurrentUser] = useState(null)
+  const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState({ message: "", type: "success" })
-  const [error, setError] = useState(null)
 
   useEffect(() => {
-    initializeApp()
-  }, [])
-
-  const initializeApp = async () => {
-    try {
-      await loadPosts()
-      const user = await getAccountId()
-      setCurrentUser(user)
-      setError(null)
-    } catch (err) {
-      console.error("Failed to initialize app:", err)
-      setError("Failed to connect to NEAR network. Please refresh the page.")
-    }
-  }
-
-  const loadPosts = async () => {
-    setLoading(true)
-    try {
-      const allPosts = await viewMethod("get_all_posts")
-      setPosts(allPosts.sort((a, b) => b.timestamp - a.timestamp))
-      setError(null)
-    } catch (error) {
-      console.error("Error loading posts:", error)
-      showToast("Failed to load posts. Please check your connection.", "error")
-      setError("Failed to load posts")
-    } finally {
+    const checkUser = async () => {
+      const accountId = await getAccountId()
+      setCurrentUser(accountId)
       setLoading(false)
+      if (!accountId) {
+        router.push("/login") // Redirect to login if not authenticated
+      }
     }
-  }
+    checkUser()
+  }, [router])
 
   const showToast = (message, type = "success") => {
     setToast({ message, type })
@@ -53,7 +33,7 @@ export default function Home() {
     setToast({ message: "", type: "success" })
   }
 
-  if (error) {
+  if (loading) {
     return (
       <div className="app-container">
         <header className="header">
@@ -66,16 +46,16 @@ export default function Home() {
           </nav>
         </header>
         <div className="container">
-          <div className="welcome-section">
-            <h2 className="welcome-title">Connection Error</h2>
-            <p className="welcome-subtitle">{error}</p>
-            <button onClick={initializeApp} className="connect-btn" style={{ marginTop: "16px" }}>
-              Retry Connection
-            </button>
+          <div className="loading">
+            <div className="spinner"></div>
           </div>
         </div>
       </div>
     )
+  }
+
+  if (!currentUser) {
+    return null // Will be redirected by useEffect
   }
 
   return (
@@ -93,29 +73,7 @@ export default function Home() {
       </header>
 
       <div className="container">
-        {loading ? (
-          <div className="loading">
-            <div className="spinner"></div>
-          </div>
-        ) : posts.length === 0 ? (
-          <div className="welcome-section">
-            <h3 className="welcome-title">No posts yet!</h3>
-            <p className="welcome-subtitle">Be the first to share something on NEARCast.</p>
-          </div>
-        ) : (
-          posts.map((post) => <Post key={post.post_id} post={post} showToast={showToast} onPostUpdate={() => {}} />)
-        )}
-
-        {!currentUser && (
-          <div className="welcome-section">
-            <h2 className="welcome-title">Welcome to NEARCast!</h2>
-            <p className="welcome-subtitle">
-              A decentralized social platform built on NEAR Protocol. Connect your wallet to start posting and
-              interacting with the community!
-            </p>
-            <Wallet />
-          </div>
-        )}
+        <UserProfile userId={userId} showToast={showToast} />
       </div>
 
       {/* Bottom Navigation */}

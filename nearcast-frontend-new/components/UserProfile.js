@@ -3,7 +3,8 @@ import { useState, useEffect } from "react"
 import { viewMethod, callMethod, getAccountId } from "../utils/near"
 import Post from "./Post"
 
-export default function UserProfile({ userId, showToast, onUserClick }) {
+export default function UserProfile({ userId, showToast }) {
+  // Removed onUserClick prop
   const [userPosts, setUserPosts] = useState([])
   const [followers, setFollowers] = useState([])
   const [following, setFollowing] = useState([])
@@ -15,7 +16,7 @@ export default function UserProfile({ userId, showToast, onUserClick }) {
   useEffect(() => {
     getAccountId().then(setCurrentUser)
     loadUserData()
-  }, [userId])
+  }, [userId]) // Depend on userId to reload data when navigating to different profiles
 
   useEffect(() => {
     if (currentUser && userId) {
@@ -25,7 +26,6 @@ export default function UserProfile({ userId, showToast, onUserClick }) {
 
   const checkIfFollowing = () => {
     if (!currentUser || currentUser === userId) return
-
     const followingUsers = JSON.parse(localStorage.getItem(`following_${currentUser}`) || "{}")
     setIsFollowing(!!followingUsers[userId])
   }
@@ -62,7 +62,6 @@ export default function UserProfile({ userId, showToast, onUserClick }) {
     }
 
     if (followLoading) return
-
     setFollowLoading(true)
 
     try {
@@ -122,7 +121,7 @@ export default function UserProfile({ userId, showToast, onUserClick }) {
         args: { recipient: userId },
         deposit: "0.001",
       })
-      showToast("Support sent successfully! 💝")
+      showToast("Support sent successfully!")
     } catch (error) {
       console.error("Error supporting user:", error)
       showToast("Failed to send support", "error")
@@ -139,54 +138,39 @@ export default function UserProfile({ userId, showToast, onUserClick }) {
 
   return (
     <div>
-      <div className="user-profile">
-        <div style={{ display: "flex", alignItems: "center", gap: "15px" }}>
-          <div className="avatar" style={{ width: "60px", height: "60px", fontSize: "24px" }}>
-            {userId.charAt(0).toUpperCase()}
-          </div>
-          <div style={{ flex: 1 }}>
-            <h2 style={{ margin: 0, color: "#24248f" }}>{userId}</h2>
-            <div className="stats">
+      <div className="profile-container">
+        <div className="profile-header">
+          <div className="profile-avatar">{userId.charAt(0).toUpperCase()}</div>
+
+          <div className="profile-info">
+            <div className="profile-username">{userId}</div>
+            <div className="profile-stats">
               <div className="stat">
-                <div className="stat-number">{userPosts.length}</div>
-                <div className="stat-label">Posts</div>
+                <span className="stat-number">{userPosts.length}</span>
+                <span className="stat-label">posts</span>
               </div>
               <div className="stat">
-                <div className="stat-number">{followers.length}</div>
-                <div className="stat-label">Followers</div>
+                <span className="stat-number">{followers.length}</span>
+                <span className="stat-label">followers</span>
               </div>
               <div className="stat">
-                <div className="stat-number">{following.length}</div>
-                <div className="stat-label">Following</div>
+                <span className="stat-number">{following.length}</span>
+                <span className="stat-label">following</span>
               </div>
             </div>
           </div>
+
           {currentUser && currentUser !== userId && (
-            <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+            <div className="profile-actions">
               <button
                 onClick={handleFollow}
                 disabled={followLoading}
-                className="button"
-                style={{
-                  background: isFollowing ? "#e0245e" : "#24248f",
-                  opacity: followLoading ? 0.6 : 1,
-                }}
+                className={`follow-btn ${isFollowing ? "following" : ""}`}
               >
                 {followLoading ? "..." : isFollowing ? "Following" : "Follow"}
               </button>
-              <button
-                onClick={handleSupport}
-                className="action-button"
-                style={{
-                  background: "#f7f9fa",
-                  border: "1px solid #e1e8ed",
-                  borderRadius: "20px",
-                  padding: "8px 12px",
-                  fontSize: "14px",
-                  color: "#657786",
-                }}
-              >
-                💝 Support (0.001 Ⓝ)
+              <button onClick={handleSupport} className="action-btn">
+                💝 Support
               </button>
             </div>
           )}
@@ -194,9 +178,11 @@ export default function UserProfile({ userId, showToast, onUserClick }) {
       </div>
 
       <div>
-        <h3 style={{ color: "#24248f", marginBottom: "20px" }}>Posts by {userId}</h3>
         {userPosts.length === 0 ? (
-          <div style={{ textAlign: "center", color: "#657786", padding: "40px" }}>No posts yet.</div>
+          <div className="welcome-section">
+            <h3 className="welcome-title">No posts yet</h3>
+            <p className="welcome-subtitle">When {userId} shares posts, they'll appear here.</p>
+          </div>
         ) : (
           userPosts.map((post) => (
             <Post
@@ -204,7 +190,7 @@ export default function UserProfile({ userId, showToast, onUserClick }) {
               post={post}
               showToast={showToast}
               onPostUpdate={loadUserData}
-              onUserClick={onUserClick}
+              // onUserClick prop removed, Post component now handles navigation directly
             />
           ))
         )}
